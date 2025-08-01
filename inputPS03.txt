@@ -1,0 +1,3 @@
+stock_prices = [100, 105, 110, 95, 100]
+moving_average_window = 3
+threshold = 10

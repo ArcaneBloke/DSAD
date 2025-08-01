@@ -15,6 +15,7 @@ Provides insert, delete, and traversal operations with proper error handling.
 """
 
 from datetime import datetime
+import os
 
 class StockPriceNode:
     """
@@ -325,6 +326,44 @@ class StockPriceLinkedList:
         except Exception:
             return f"StockPriceLinkedList: {self.size}/{self.max_capacity} prices"
 
+    def calculate_moving_average(self, window_size):
+        """Compute moving averages for the given window size."""
+        if not isinstance(window_size, int) or window_size <= 0:
+            raise ValueError("Window size must be a positive integer")
+
+        if self.is_empty():
+            raise ValueError("No data available for moving average")
+
+        if window_size > self.size:
+            raise ValueError("Window size larger than available data")
+
+        prices = self.get_all_prices()
+        averages = []
+        window_sum = sum(prices[:window_size])
+        averages.append(round(window_sum / window_size, 2))
+        for i in range(window_size, len(prices)):
+            window_sum += prices[i] - prices[i - window_size]
+            averages.append(round(window_sum / window_size, 2))
+        return averages
+
+    def detect_sudden_changes(self, threshold):
+        """Detect consecutive price changes greater than the threshold."""
+        if not isinstance(threshold, (int, float)) or threshold <= 0:
+            raise ValueError("Threshold must be a positive number")
+
+        if self.size < 2:
+            raise ValueError("Need at least two prices to detect changes")
+
+        prices = self.get_all_prices()
+        changes = []
+        prev = prices[0]
+        for price in prices[1:]:
+            diff = abs(price - prev)
+            if diff > threshold:
+                changes.append((prev, price, diff))
+            prev = price
+        return changes
+
 # ==============================================================================
 # INTEGRATION INTERFACE FOR OTHER TEAM MEMBERS
 # This function is the primary interface for other team members to use
@@ -352,4 +391,79 @@ def create_stock_price_storage(max_capacity=1000):
     except ValueError as e:
         print(f"Error creating storage: {e}")
         return None
+
+
+# =============================================================================
+# File I/O and Main Execution
+# =============================================================================
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def parse_input_file(filename):
+    """Parse stock prices, window size, and threshold from the input file."""
+    path = os.path.join(ROOT_DIR, filename)
+    prices = []
+    window = None
+    threshold = None
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {filename}")
+
+    with open(path, "r") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("stock_prices"):
+                start = line.find("[")
+                end = line.find("]", start)
+                if start != -1 and end != -1:
+                    nums = line[start + 1 : end].split(",")
+                    prices = [float(n.strip()) for n in nums if n.strip()]
+            elif line.startswith("moving_average_window"):
+                parts = line.split("=")
+                if len(parts) >= 2:
+                    window = int(parts[1].strip())
+            elif line.startswith("threshold"):
+                parts = line.split("=")
+                if len(parts) >= 2:
+                    threshold = float(parts[1].strip())
+
+    if not prices or window is None or threshold is None:
+        raise ValueError("Invalid input file format")
+
+    return prices, window, threshold
+
+
+def write_to_file(filename, data):
+    """Write output data to a file in the repository root."""
+    path = os.path.join(ROOT_DIR, filename)
+    with open(path, "w") as file:
+        file.write(data)
+
+
+def insert_prices(storage, prices):
+    """Insert a list of prices into the linked list storage."""
+    for price in prices:
+        storage.insert_at_end(price)
+
+
+def main():
+    prices, window, threshold = parse_input_file("inputPS03.txt")
+    storage = create_stock_price_storage(max_capacity=len(prices) + 10)
+    insert_prices(storage, prices)
+
+    moving_avg = storage.calculate_moving_average(window)
+    changes = storage.detect_sudden_changes(threshold)
+
+    output_lines = [
+        f"Moving Average of the last {window} prices: {moving_avg}",
+        f"Sudden Changes: {changes}",
+    ]
+    write_to_file("outputPS03.txt", "\n".join(output_lines) + "\n")
+
+
+if __name__ == "__main__":
+    main()
 
